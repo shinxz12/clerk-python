@@ -1,11 +1,25 @@
 import os
+from pydantic import BaseModel
 import requests
 from typing import Literal, Optional, Any
-from models.base_models import ResponseError, ResponseSuccess, Response
 
 
 class BaseRequest:
     BASE_URL = "https://api.clerk.com/v1/"
+
+    class RequestException(Exception):
+        def __init__(self, response: requests.Response):
+            self.status_code = response.status_code
+            self.request_body = response.request.body
+            self.method = response.request.method
+            self.url = response.request.url
+            self.exception_message = f"""
+                Request: {self.method} {self.url}:
+                    {self.request_body}
+                Response: {self.status_code}
+                    {response.text}
+            """
+            super().__init__(self.exception_message)
 
     def __init__(self, secret_key: Optional[str] = None) -> None:
         self.__secret_key = secret_key or os.getenv("CLERK_SECRET_KEY")
@@ -18,36 +32,32 @@ class BaseRequest:
         path: str,
         body: Optional[dict[Any, Any]] = None,
         params: Optional[dict[Any, Any]] = None,
-    ) -> Response:
+    ) -> dict[Any, Any]:
         headers = {
             "Content-type": "application/json",
             "Authorization": "Bearer " + self.__secret_key,
         }
         url = self.BASE_URL + path
         response = requests.request(
-            method, url, headers=headers, data=body, params=params
+            method, url, headers=headers, json=body, params=params
         )
-        if response.status_code >= 500:
-            print(response.text)
-            raise Exception("Server Error. Error code: " + response.status_code)
+
+        if response.status_code >= 400:
+            raise self.RequestException(response)
 
         if response.status_code == 204:
             data = {}
         else:
             data = response.json()
 
-        status_code = response.status_code
-        if response.status_code >= 400:
-            data["status_code"] = status_code
-            return ResponseError.model_validate(data)
-        return ResponseSuccess(data=data, status_code=status_code)
+        return data
 
     def _get(
         self,
         path: str,
         body: Optional[dict[Any, Any]] = None,
         params: Optional[dict[Any, Any]] = None,
-    ) -> Response:
+    ) -> dict[Any, Any]:
         return self._make_request("GET", path, body, params)
 
     def _post(
@@ -55,7 +65,7 @@ class BaseRequest:
         path: str,
         body: Optional[dict[Any, Any]] = None,
         params: Optional[dict[Any, Any]] = None,
-    ) -> Response:
+    ) -> dict[Any, Any]:
         return self._make_request("POST", path, body, params)
 
     def _put(
@@ -63,7 +73,7 @@ class BaseRequest:
         path: str,
         body: Optional[dict[Any, Any]] = None,
         params: Optional[dict[Any, Any]] = None,
-    ) -> Response:
+    ) -> dict[Any, Any]:
         return self._make_request("PUT", path, body, params)
 
     def _patch(
@@ -71,7 +81,7 @@ class BaseRequest:
         path: str,
         body: Optional[dict[Any, Any]] = None,
         params: Optional[dict[Any, Any]] = None,
-    ) -> Response:
+    ) -> dict[Any, Any]:
         return self._make_request("PATCH", path, body, params)
 
     def _delete(
@@ -79,5 +89,8 @@ class BaseRequest:
         path: str,
         body: Optional[dict[Any, Any]] = None,
         params: Optional[dict[Any, Any]] = None,
-    ) -> Response:
+    ) -> dict[Any, Any]:
         return self._make_request("DELETE", path, body, params)
+
+    def get_object(self, object_class: BaseModel, data: dict):
+        return object_class.model_validate(data)

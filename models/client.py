@@ -1,7 +1,6 @@
-from datetime import date
 from typing import Literal, List, Optional
 from pydantic import BaseModel
-from .session_models import Session
+from .session import Session
 
 
 class Client(BaseModel):

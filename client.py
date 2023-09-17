@@ -1,13 +1,12 @@
-from typing import Optional
-from models.base_models import ListResponse, RetrieveResponse
-from models import client_models
+from typing import List, Optional
+import models
 from base import BaseRequest
 
 
 class Client(BaseRequest):
     def get_clients_list(
         self, limit: Optional[int] = None, offset: Optional[int] = None
-    ) -> ListResponse:
+    ) -> List[models.Client]:
         """
         Returns a list of all clients. The clients are returned sorted by creation date,
           with the newest clients appearing first.
@@ -18,9 +17,11 @@ class Client(BaseRequest):
             params["offset"] = offset
         if limit is not None:
             params["limit"] = limit
-        return self._get(path, params=params)
 
-    def verify_client(self, token: str) -> RetrieveResponse:
+        data = self._get(path, params=params)
+        return [self.get_object(models.Client, client) for client in data]
+
+    def verify_client(self, token: str) -> models.Client:
         """
         Verifies the client in the provided token
         """
@@ -28,18 +29,22 @@ class Client(BaseRequest):
         body = {
             "token": token,
         }
-        return self._post(path, body)
+        data = self._post(path, body)
+        print(data)
+        return self.get_object(models.Client, data)
 
-    def get_client(self, client_id: str) -> RetrieveResponse:
+    def get_client(self, client_id: str) -> models.Client:
         """
         Returns the details of a client.
         """
         path = "clients/{}".format(client_id)
-        return self._get(path)
+        data = self._get(path)
+        return self.get_object(models.Client, data)
 
-    def get_last_active_session(self, client_id: str) -> RetrieveResponse:
+    def get_last_active_session(self, client_id: str) -> models.Session:
         """
         Returns the details of the last active session of a client.
         """
         path = "clients/{}/last_active_session".format(client_id)
-        return self._get(path)
+        data = self._get(path)
+        return self.get_object(models.Session, data)
